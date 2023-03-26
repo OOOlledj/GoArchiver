@@ -2,11 +2,22 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"os"
 )
 
 var FileMask = "%-48v %4.2f %v\n"
 var units = map[int]string{0: "bytes", 1: "KB", 2: "MB", 3: "GB"}
+
+type FileInfoPath struct {
+	Info fs.FileInfo
+	Path string
+}
+
+func (file FileInfoPath) GetRelativePath() string {
+	path := file.Path + "/" + file.Info.Name()
+	return path
+}
 
 func OpenFile(path string) (file *os.File) {
 	// Open file and return the object
@@ -17,38 +28,43 @@ func OpenFile(path string) (file *os.File) {
 	return
 }
 
-func ListDir(path string) (totalBytes int64) {
-	/* Print files in the directory
-	   Retun total size of the directory content in bytes
+func ListDir(path string) (totalBytes int64, filesInDirectory []FileInfoPath) {
+	/*
+		Print files in the directory
+		Retun total size of the directory content in bytes and slice of the files
 	*/
-	directory := OpenFile(path)
-	files, err := directory.Readdir(0)
+	workDirectory := OpenFile(path)
+	files, err := workDirectory.Readdir(0)
 	if err != nil {
 		fmt.Println(err)
 	} else {
 		// inspect all files in the directory
 		for _, entry := range files {
-			size, unit := HandleSize(entry.Size())
-			if entry.IsDir() { // if object is directory, recursively start to inspect it
-				totalBytes += ListDir(path + "/" + entry.Name())
+			// if entry is a directory, recursively start to inspect it
+			if entry.IsDir() {
+				// Buffer is used to store file references in the entry, if it is a directory
+				totalBytesBuffer, filesInDirectoryBuffer := ListDir(path + "/" + entry.Name())
+				filesInDirectory = append(filesInDirectory, filesInDirectoryBuffer...)
+				totalBytes += totalBytesBuffer
+				// if enry is file, simply add it to list and add file size to total
 			} else {
-				fmt.Printf(FileMask, path+"/"+entry.Name(), size, unit)
+				filesInDirectory = append(filesInDirectory, FileInfoPath{entry, path})
 				totalBytes += entry.Size()
 			}
 		}
 	}
-	directory.Close()
+	workDirectory.Close()
 	return
 }
 
-func HandleSize(bytes int64) (fBytes float64, unit string) {
+func FormatFileSize(bytes int64) (fBytes float64, unit string) {
 	/*
-	   Format file size and return it's representation as calculated size in the units
-	   ex. 2048 bytes -> 2.0 KB, etc
+		Return file representation representation as calculated size and units
+		ex. 2048 bytes -> 2.0 KB, etc
 	*/
 	fBytes = float64(bytes)
 	count := 0
-	for range []int{0, 1, 2, 3} { // see variable units"
+	for range []int{0, 1, 2, 3} { // see map "units"
 		if fBytes/1024 < 1 {
 			break
 		} else {
