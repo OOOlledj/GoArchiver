@@ -15,4 +15,5 @@ func main() {
 	}
 	Printfln("Total: %4.2f %v", totalSize, totalUnit)
 	TarFile(path, &files)
+	ZipFile(path, &files)
 }
