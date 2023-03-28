@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/tar"
+	"fmt"
+
 	//"fmt"
 	"io"
 	//"compress/gzip"
@@ -11,6 +13,9 @@ import (
 )
 
 func TarFile(path string, FilesToTar *[]FileInfoPath) {
+	/*
+		add files from slice to .tar archive
+	*/
 	if _, err := os.Stat(path + ".tar"); err == nil {
 		log.Fatalln("Archieve file already exists!")
 	}
@@ -20,14 +25,19 @@ func TarFile(path string, FilesToTar *[]FileInfoPath) {
 	}
 	tw := tar.NewWriter(f)
 	for _, file := range *FilesToTar {
+		// header (hdr) is required for writing to .tar
 		hdr := &tar.Header{
 			Name: file.GetRelativePath(),
 			Size: file.Info.Size(),
 			Mode: int64(file.Info.Mode()),
 		}
+		// write the header
+		fmt.Println(1, hdr.Name)
 		if err := tw.WriteHeader(hdr); err != nil {
 			log.Fatalln(err)
 		}
+		// write the file
+		fmt.Println(2)
 		fileBytes, _ := os.ReadFile(file.GetRelativePath())
 		if _, err := tw.Write(fileBytes); err != nil {
 			log.Fatalln(err)
@@ -48,7 +58,7 @@ func ZipFile(path string, FilesToZip *[]FileInfoPath) {
 	}
 	zw := zip.NewWriter(f)
 	for _, file := range *FilesToZip {
-		fileFullName := file.Path + "/" + file.Info.Name()
+		fileFullName := file.GetRelativePath()
 		f, err := os.Open(fileFullName)
 		if err != nil {
 			log.Fatalln(err)

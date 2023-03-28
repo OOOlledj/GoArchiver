@@ -3,7 +3,9 @@ package main
 import (
 	"fmt"
 	"io/fs"
+	"log"
 	"os"
+	//"strings"
 )
 
 var FileMask = "%-48v %4.2f %v\n"
@@ -14,8 +16,17 @@ type FileInfoPath struct {
 	Path string
 }
 
-func (file FileInfoPath) GetRelativePath() string {
-	path := file.Path + "/" + file.Info.Name()
+func (file FileInfoPath) GetRelativePath() (path string) {
+	/*
+		get relative path of file or directory
+	*/
+	// handle cases "file.txt"
+	if file.Path != file.Info.Name() {
+		path = file.Path + "/" + file.Info.Name()
+		// handle cases "/home/ooolledj/file.txt"
+	} else {
+		path = file.Path
+	}
 	return path
 }
 
@@ -31,29 +42,38 @@ func OpenFile(path string) (file *os.File) {
 func ListDir(path string) (totalBytes int64, filesInDirectory []FileInfoPath) {
 	/*
 		Print files in the directory
-		Retun total size of the directory content in bytes and slice of the files
+		Return total size of the directory content in bytes and slice of the files
 	*/
-	workDirectory := OpenFile(path)
-	files, err := workDirectory.Readdir(0)
+	pathObject := OpenFile(path)
+	pathObjectStat, err := pathObject.Stat()
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		// inspect all files in the directory
-		for _, entry := range files {
-			// if entry is a directory, recursively start to inspect it
-			if entry.IsDir() {
-				// Buffer is used to store file references in the entry, if it is a directory
-				totalBytesBuffer, filesInDirectoryBuffer := ListDir(path + "/" + entry.Name())
-				filesInDirectory = append(filesInDirectory, filesInDirectoryBuffer...)
-				totalBytes += totalBytesBuffer
-				// if enry is file, simply add it to list and add file size to total
-			} else {
-				filesInDirectory = append(filesInDirectory, FileInfoPath{entry, path})
-				totalBytes += entry.Size()
+		log.Fatalln(err)
+	}
+	if pathObjectStat.IsDir() {
+		files, err := pathObject.Readdir(0)
+		if err != nil {
+			log.Fatalln(err)
+		} else {
+			// inspect all files in the directory
+			for _, entry := range files {
+				// if entry is a directory, recursively start to inspect it
+				if entry.IsDir() {
+					// Buffer is used to store file references in the entry, if it is a directory
+					totalBytesBuffer, filesInDirectoryBuffer := ListDir(path + "/" + entry.Name())
+					filesInDirectory = append(filesInDirectory, filesInDirectoryBuffer...)
+					totalBytes += totalBytesBuffer
+					// if enry is file, simply add it to list and add file size to total
+				} else {
+					filesInDirectory = append(filesInDirectory, FileInfoPath{entry, path})
+					totalBytes += entry.Size()
+				}
 			}
 		}
+	} else {
+		filesInDirectory = append(filesInDirectory, FileInfoPath{pathObjectStat, path})
+		totalBytes = pathObjectStat.Size()
 	}
-	workDirectory.Close()
+	pathObject.Close()
 	return
 }
 

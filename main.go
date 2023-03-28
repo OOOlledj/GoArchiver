@@ -4,7 +4,7 @@ import (
 	"fmt"
 )
 
-var path string = "test"
+var path string = "test.txt"
 
 func main() {
 	totalBytes, files := ListDir(path)
