@@ -2,28 +2,26 @@ package main
 
 import (
 	"archive/tar"
-	"fmt"
-
-	//"fmt"
-	"io"
-	//"compress/gzip"
 	"archive/zip"
+	"compress/gzip"
+	"io"
 	"log"
 	"os"
 )
 
-func TarFile(path string, FilesToTar *[]FileInfoPath) {
+func TarGzFile(path string, FilesToTar *[]FileInfoPath) {
 	/*
 		add files from slice to .tar archive
 	*/
-	if _, err := os.Stat(path + ".tar"); err == nil {
+	if _, err := os.Stat(path + ".tar.gz"); err == nil {
 		log.Fatalln("Archieve file already exists!")
 	}
-	f, err := os.Create("test.tar")
+	f, err := os.Create("test.tar.gz")
 	if err != nil {
 		log.Fatalln(err)
 	}
-	tw := tar.NewWriter(f)
+	gw := gzip.NewWriter(f) //gzip writer
+	tw := tar.NewWriter(gw) //tar writer
 	for _, file := range *FilesToTar {
 		// header (hdr) is required for writing to .tar
 		hdr := &tar.Header{
@@ -32,18 +30,19 @@ func TarFile(path string, FilesToTar *[]FileInfoPath) {
 			Mode: int64(file.Info.Mode()),
 		}
 		// write the header
-		fmt.Println(1, hdr.Name)
 		if err := tw.WriteHeader(hdr); err != nil {
 			log.Fatalln(err)
 		}
 		// write the file
-		fmt.Println(2)
 		fileBytes, _ := os.ReadFile(file.GetRelativePath())
 		if _, err := tw.Write(fileBytes); err != nil {
 			log.Fatalln(err)
 		}
 	}
-	if err := tw.Close(); err != nil {
+	if err := tw.Close(); err != nil { // close tar writer
+		log.Fatalln(err)
+	}
+	if err := gw.Close(); err != nil { // close gzip writer
 		log.Fatalln(err)
 	}
 }
@@ -76,5 +75,3 @@ func ZipFile(path string, FilesToZip *[]FileInfoPath) {
 		log.Fatalln(err)
 	}
 }
-
-func GzFile() {}
