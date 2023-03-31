@@ -5,29 +5,16 @@ import (
 	"io/fs"
 	"log"
 	"os"
-	//"strings"
+	"path"
+	"strings"
 )
 
 var FileMask = "%-48v %4.2f %v\n"
 var units = map[int]string{0: "bytes", 1: "KB", 2: "MB", 3: "GB"}
 
 type FileInfoPath struct {
-	Info fs.FileInfo
-	Path string
-}
-
-func (file FileInfoPath) GetRelativePath() (path string) {
-	/*
-		get relative path of file or directory
-	*/
-	// handle cases "file.txt"
-	if file.Path != file.Info.Name() {
-		path = file.Path + "/" + file.Info.Name()
-		// handle cases "/home/ooolledj/file.txt"
-	} else {
-		path = file.Path
-	}
-	return path
+	Info         fs.FileInfo
+	RelativePath string
 }
 
 func OpenFile(path string) (file *os.File) {
@@ -39,12 +26,73 @@ func OpenFile(path string) (file *os.File) {
 	return
 }
 
-func ListDir(path string) (totalBytes int64, filesInDirectory []FileInfoPath) {
+func ListFilesToWrite(wwwpath string) (files []FileInfoPath) {
+	wwwpath = path.Clean(wwwpath)
+	files = ListDir(wwwpath)
+	totalBytes := 0
+	for idx, file := range files {
+		totalBytes += int(file.Info.Size())
+		if wwwpath == file.RelativePath {
+			files[idx].RelativePath = ""
+		} else {
+			files[idx].RelativePath = strings.Replace(file.RelativePath, wwwpath+"/", "", 1)
+		}
+	}
+	totalSize, totalUnit := FormatFileSize(int64(totalBytes))
+	fmt.Println("Listing files to write:")
+	fmt.Println(strings.Repeat("-", 59))
+	for _, file := range files {
+		size, unit := FormatFileSize(file.Info.Size())
+
+		_, save := file.GetPaths(wwwpath)
+		fmt.Printf(FileMask, save, size, unit)
+
+	}
+	fmt.Println(strings.Repeat("-", 59))
+	Printfln(FileMask, "Total:", totalSize, totalUnit)
+	fmt.Println()
+	return
+}
+
+func (file FileInfoPath) GetPaths(start string) (openPath, savePath string) {
+	/*
+		Preparing PATH values to open file and to save file as path
+		OPEN PATH - path to the file in the file system, we read it's content and add it to the archive
+		SAVE PATH - relative path to the file, which is used to display it inside archive
+
+		example 1:
+			we have provided path: /tmp/test1/test2/file1.txt
+			we add file1.txt to archive root
+		example 2:
+			we have provided path /tmp/test/test2
+			we add file.txt and any other file in the folder test2 to archive (file2.txt, ...) root
+		example 3:
+			we have provided path /tmp/test/
+			we add folder test2 with it's content to archive. if there are any other folders or files - we add them to the root of the archive
+	*/
+	// BUILDING SAVE PATH
+	if file.RelativePath == "" {
+		savePath = file.Info.Name()
+	} else {
+		savePath = path.Join(file.RelativePath, file.Info.Name())
+	}
+	// BUILDING OPEN PATH
+	if start == "" || start == "." {
+		openPath = savePath
+	} else if strings.Contains(start, file.Info.Name()) {
+		openPath = start
+	} else {
+		openPath = path.Join(start, savePath)
+	}
+	return
+}
+
+func ListDir(startPath string) (filesInDirectory []FileInfoPath) {
 	/*
 		Print files in the directory
 		Return total size of the directory content in bytes and slice of the files
 	*/
-	pathObject := OpenFile(path)
+	pathObject := OpenFile(startPath)
 	pathObjectStat, err := pathObject.Stat()
 	if err != nil {
 		log.Fatalln(err)
@@ -58,20 +106,17 @@ func ListDir(path string) (totalBytes int64, filesInDirectory []FileInfoPath) {
 			for _, entry := range files {
 				// if entry is a directory, recursively start to inspect it
 				if entry.IsDir() {
-					// Buffer is used to store file references in the entry, if it is a directory
-					totalBytesBuffer, filesInDirectoryBuffer := ListDir(path + "/" + entry.Name())
-					filesInDirectory = append(filesInDirectory, filesInDirectoryBuffer...)
-					totalBytes += totalBytesBuffer
-					// if enry is file, simply add it to list and add file size to total
+					if entry.Name() != ".git" {
+						filesInDirectoryBuffer := ListDir(startPath + "/" + entry.Name())
+						filesInDirectory = append(filesInDirectory, filesInDirectoryBuffer...)
+					}
 				} else {
-					filesInDirectory = append(filesInDirectory, FileInfoPath{entry, path})
-					totalBytes += entry.Size()
+					filesInDirectory = append(filesInDirectory, FileInfoPath{entry, startPath})
 				}
 			}
 		}
 	} else {
-		filesInDirectory = append(filesInDirectory, FileInfoPath{pathObjectStat, path})
-		totalBytes = pathObjectStat.Size()
+		filesInDirectory = append(filesInDirectory, FileInfoPath{pathObjectStat, ""})
 	}
 	pathObject.Close()
 	return
