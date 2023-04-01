@@ -46,11 +46,9 @@ func ListFilesToWrite(wwwpath string) (files []FileInfoPath) {
 
 		_, save := file.GetPaths(wwwpath)
 		fmt.Printf(FileMask, save, size, unit)
-
 	}
 	fmt.Println(strings.Repeat("-", 59))
-	Printfln(FileMask, "Total:", totalSize, totalUnit)
-	fmt.Println()
+	Printfln(FileMask, "Total:\n", totalSize, totalUnit)
 	return
 }
 
