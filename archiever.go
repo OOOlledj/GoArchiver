@@ -10,23 +10,25 @@ import (
 	"os"
 )
 
-func TarGzFile(path, archName string, FilesToTar *[]FileInfoPath) {
+func TarGzFile(archName string, FilesToTar *[]FileInfoPath) {
 	/*
-		add files from slice to .tar archive
+		add files from slice to .tar.gz archive
 	*/
-	if _, err := os.Stat(archName + ".tar.gz"); err == nil {
+	archFullName := archName + ".tar.gz"
+	if _, err := os.Stat(archFullName); err == nil {
 		log.Fatalln("Archieve file already exists!")
 	}
-	f, err := os.Create(archName + ".tar.gz")
+	f, err := os.Create(archFullName)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	gw := gzip.NewWriter(f) //gzip writer
 	tw := tar.NewWriter(gw) //tar writer
-	fmt.Println(*FilesToTar)
+	// fmt.Println(*FilesToTar)
+	fmt.Printf("Writing files to %v...\n", archFullName)
 	for _, file := range *FilesToTar {
 		// header (hdr) is required for writing to .tar
-		openPath, savePath := file.GetPaths(path)
+		openPath, savePath := file.GetPaths(file.StartPath)
 		hdr := &tar.Header{
 			Name: savePath,
 			Size: file.Info.Size(),
@@ -37,7 +39,7 @@ func TarGzFile(path, archName string, FilesToTar *[]FileInfoPath) {
 			log.Fatalln(err)
 		}
 		fileBytes, _ := os.ReadFile(openPath)
-		fmt.Printf("Writing file to TAR\n: %v", savePath)
+		// fmt.Println("-- ", savePath)
 		if _, err := tw.Write(fileBytes); err != nil {
 			log.Fatalln(err)
 		}
@@ -48,19 +50,25 @@ func TarGzFile(path, archName string, FilesToTar *[]FileInfoPath) {
 	if err := gw.Close(); err != nil { // close gzip writer
 		log.Fatalln(err)
 	}
+	fmt.Printf("Files successfully written to %v\n", archFullName)
 }
 
-func ZipFile(path, archName string, FilesToZip *[]FileInfoPath) {
-	if _, err := os.Stat(archName + ".zip"); err == nil {
+func ZipFile(archName string, FilesToZip *[]FileInfoPath) {
+	/*
+		add files from slice to .zip archive
+	*/
+	archFullName := archName + ".zip"
+	if _, err := os.Stat(archFullName); err == nil {
 		log.Fatalln("ZIP file already exists!")
 	}
-	f, err := os.Create(archName + ".zip")
+	f, err := os.Create(archFullName)
 	if err != nil {
 		log.Fatalln(err)
 	}
 	zw := zip.NewWriter(f)
+	fmt.Println("Writing files to ZIP...")
 	for _, file := range *FilesToZip {
-		openPath, savePath := file.GetPaths(path)
+		openPath, savePath := file.GetPaths(file.StartPath)
 		f, err := os.Open(openPath)
 		if err != nil {
 			log.Fatalln(err)
@@ -70,7 +78,7 @@ func ZipFile(path, archName string, FilesToZip *[]FileInfoPath) {
 		if err != nil {
 			log.Fatalln(err)
 		}
-		fmt.Printf("Writing file to ZIP\n: %v", savePath)
+		// fmt.Println("-- ", savePath)
 		if _, err := io.Copy(w, f); err != nil {
 			log.Fatalln(err)
 		}
@@ -78,4 +86,5 @@ func ZipFile(path, archName string, FilesToZip *[]FileInfoPath) {
 	if err := zw.Close(); err != nil {
 		log.Fatalln(err)
 	}
+	fmt.Printf("Files successfully written to %v\n", archFullName)
 }

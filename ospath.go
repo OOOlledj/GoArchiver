@@ -15,6 +15,7 @@ var units = map[int]string{0: "bytes", 1: "KB", 2: "MB", 3: "GB"}
 type FileInfoPath struct {
 	Info         fs.FileInfo
 	RelativePath string
+	StartPath    string
 }
 
 func OpenFile(path string) (file *os.File) {
@@ -26,17 +27,10 @@ func OpenFile(path string) (file *os.File) {
 	return
 }
 
-func ListFilesToWrite(wwwpath string) (files []FileInfoPath) {
-	wwwpath = path.Clean(wwwpath)
-	files = ListDir(wwwpath)
+func PrintFilesToWrite(files []FileInfoPath) {
 	totalBytes := 0
-	for idx, file := range files {
+	for _, file := range files {
 		totalBytes += int(file.Info.Size())
-		if wwwpath == file.RelativePath {
-			files[idx].RelativePath = ""
-		} else {
-			files[idx].RelativePath = strings.Replace(file.RelativePath, wwwpath+"/", "", 1)
-		}
 	}
 	totalSize, totalUnit := FormatFileSize(int64(totalBytes))
 	fmt.Println("Listing files to write:")
@@ -44,11 +38,24 @@ func ListFilesToWrite(wwwpath string) (files []FileInfoPath) {
 	for _, file := range files {
 		size, unit := FormatFileSize(file.Info.Size())
 
-		_, save := file.GetPaths(wwwpath)
+		_, save := file.GetPaths(file.StartPath)
 		fmt.Printf(FileMask, save, size, unit)
 	}
 	fmt.Println(strings.Repeat("-", 59))
-	Printfln(FileMask, "Total:\n", totalSize, totalUnit)
+	Printfln(FileMask, "Total:", totalSize, totalUnit)
+}
+
+func ListFilesToWrite(startPath string) (files []FileInfoPath) {
+	startPath = path.Clean(startPath)
+	files = ListDir(startPath, startPath)
+	for idx, file := range files {
+		if file.StartPath == file.RelativePath {
+			files[idx].RelativePath = ""
+		} else {
+			files[idx].RelativePath = strings.Replace(file.RelativePath, file.StartPath+"/", "", 1)
+		}
+		//files[idx].StartPath = file.StartPath
+	}
 	return
 }
 
@@ -85,12 +92,12 @@ func (file FileInfoPath) GetPaths(start string) (openPath, savePath string) {
 	return
 }
 
-func ListDir(startPath string) (filesInDirectory []FileInfoPath) {
+func ListDir(startPathRec, startPath string) (filesInDirectory []FileInfoPath) {
 	/*
 		Print files in the directory
 		Return total size of the directory content in bytes and slice of the files
 	*/
-	pathObject := OpenFile(startPath)
+	pathObject := OpenFile(startPathRec)
 	pathObjectStat, err := pathObject.Stat()
 	if err != nil {
 		log.Fatalln(err)
@@ -105,16 +112,16 @@ func ListDir(startPath string) (filesInDirectory []FileInfoPath) {
 				// if entry is a directory, recursively start to inspect it
 				if entry.IsDir() {
 					if entry.Name() != ".git" {
-						filesInDirectoryBuffer := ListDir(startPath + "/" + entry.Name())
+						filesInDirectoryBuffer := ListDir(startPathRec+"/"+entry.Name(), startPath)
 						filesInDirectory = append(filesInDirectory, filesInDirectoryBuffer...)
 					}
 				} else {
-					filesInDirectory = append(filesInDirectory, FileInfoPath{entry, startPath})
+					filesInDirectory = append(filesInDirectory, FileInfoPath{entry, startPathRec, startPath})
 				}
 			}
 		}
 	} else {
-		filesInDirectory = append(filesInDirectory, FileInfoPath{pathObjectStat, ""})
+		filesInDirectory = append(filesInDirectory, FileInfoPath{pathObjectStat, "", ""})
 	}
 	pathObject.Close()
 	return
